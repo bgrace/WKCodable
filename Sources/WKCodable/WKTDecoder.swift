@@ -17,7 +17,7 @@ public extension WKTDecoder {
     
     // MARK: - Public
 
-    public func decode<T>(from value: String) throws -> T {
+    func decode<T>(from value: String) throws -> T {
         scanner = Scanner(string: value)
         scanner.charactersToBeSkipped = CharacterSet.whitespaces
         scanner.caseSensitive = false
@@ -31,16 +31,16 @@ public extension WKTDecoder {
     // MARK: - Private
     
     func scanSRID() throws -> UInt {
-        if !scanner.scanString("SRID=", into: nil) {
+        
+        guard let _ = scanner.scanString("SRID=") else {
             throw Error.dataCorrupted
         }
         
-        var srid: Int32 = 0
-        if !scanner.scanInt32(&srid) {
+        guard let srid = scanner.scanInt32() else {
             throw Error.dataCorrupted
         }
         
-        if !scanner.scanString(";", into: nil) {
+        guard let _ = scanner.scanString(";") else {
             throw Error.dataCorrupted
         }
 
@@ -85,9 +85,9 @@ public extension WKTDecoder {
                 return MultiPoint(points: [])
             } else {
                 var points: [Point] = []
-                while scanner.scanString("(", into: nil), let point = scanPoint() {
+                while scanner.scanString("(") != nil, let point = scanPoint() {
                     points.append(point)
-                    if !scanner.scanString(",", into: nil) {
+                    if scanner.scanString(",") == nil {
                         break
                     }
                 }
@@ -120,7 +120,7 @@ public extension WKTDecoder {
                 var geometries: [Geometry] = []
                 while let geometry = try scanGeometry() {
                     geometries.append(geometry)
-                    if scanner.isAtEnd || scanner.scanString(")", into: nil) {
+                    if scanner.isAtEnd || scanner.scanString(")") != nil {
                         break
                     }
                 }
@@ -130,13 +130,8 @@ public extension WKTDecoder {
     }
     
     private func scanType() -> WKTTypeCode? {
-        #if !os(macOS)
-        var rawType: String? = ""
-        #else
-        var rawType: NSString? = ""
-        #endif
         let boundarySet = CharacterSet.whitespaces.union(CharacterSet(charactersIn: "("))
-        scanner.scanUpToCharacters(from: boundarySet, into: &rawType)
+        let rawType = scanner.scanUpToCharacters(from: boundarySet)
         
         guard let type = WKTTypeCode(rawValue: String(rawType!)) else {
             return nil
@@ -146,24 +141,19 @@ public extension WKTDecoder {
     }
     
     func scanEmpty() -> Bool {
-        let scanLocation = scanner.scanLocation
-        if scanner.scanString("EMPTY", into: nil) {
+        if let _ = scanner.scanString("EMPTY") {
             return true
         }
-        scanner.scanLocation = scanLocation
-        if !scanner.scanString("(", into: nil) {
-            scanner.scanLocation = scanLocation
-        }
+        let _ = scanner.scanString("(")
         return false
     }
     
     func scanPoint() -> Point? {
         var vector: [Double] = []
-        var number: Double = 0.0
         
-        while !scanner.scanString(")", into: nil)
-            && !scanner.scanString(",", into: nil)
-            && scanner.scanDouble(&number) {
+        while scanner.scanString(")") == nil,
+            scanner.scanString(",") == nil,
+            let number = scanner.scanDouble() {
             vector.append(number)
         }
         
@@ -177,7 +167,7 @@ public extension WKTDecoder {
     func scanLineString() -> LineString? {
         var points: [Point] = []
         
-        scanner.scanString("(", into: nil)
+        let _ = scanner.scanString("(")
         while let point = scanPoint() {
             points.append(point)
         }
@@ -192,7 +182,7 @@ public extension WKTDecoder {
     func scanPolygon() -> Polygon? {
         var lineStrings: [LineString] = []
         
-        scanner.scanString("(", into: nil)
+        let _ = scanner.scanString("(")
         while let lineString = scanLineString() {
             lineStrings.append(lineString)
         }
